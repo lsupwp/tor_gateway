@@ -1,32 +1,47 @@
 #!/usr/bin/env bash
-# Install runtime dependencies and the tor-gateway binary.
-# Usage: sudo ./install.sh
+# Build and install tor-gateway.
+# Usage: sudo ./install.sh            build, install deps, install binary
+#        ./install.sh --build-only    build the binary only, no root needed
 set -euo pipefail
 cd "$(dirname "$0")"
 
 BIN=tor-gateway
 PREFIX=/usr/local/bin
+MODE=install
+
+case "${1:-}" in
+    "") ;;
+    --build-only) MODE=build ;;
+    -h|--help)
+        echo "usage: sudo ./install.sh [--build-only]"
+        exit 0
+        ;;
+    *) echo "error: unknown option $1" >&2; exit 2 ;;
+esac
 
 die() {
     echo "error: $*" >&2
     exit 1
 }
 
-if [[ $EUID -ne 0 ]]; then
-    die "run as root: sudo ./install.sh"
+if [[ $MODE == install && $EUID -ne 0 ]]; then
+    die "run as root: sudo ./install.sh (or use --build-only)"
 fi
 
-# Build the binary if it is not there yet.
-if [[ ! -x $BIN ]]; then
+build() {
     if ! command -v go >/dev/null 2>&1; then
-        die "$BIN not built and Go is not installed. Run ./build.sh first."
+        if [[ -x $BIN ]]; then
+            echo "Go not found, using existing $BIN"
+            return
+        fi
+        die "Go is required to build $BIN"
     fi
     echo "building $BIN..."
-    ./build.sh
-    if [[ -n ${SUDO_USER:-} ]]; then
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$BIN" ./cmd/tor-gateway
+    if [[ $EUID -eq 0 && -n ${SUDO_USER:-} ]]; then
         chown "$SUDO_USER":"$(id -gn "$SUDO_USER")" "$BIN" 2>/dev/null || true
     fi
-fi
+}
 
 install_packages() {
     if command -v apt-get >/dev/null 2>&1; then
@@ -59,6 +74,9 @@ install_conntrack() {
         apk add --no-cache conntrack-tools
     fi
 }
+
+build
+[[ $MODE == build ]] && exit 0
 
 missing=0
 command -v tor >/dev/null 2>&1 || missing=1

@@ -12,31 +12,33 @@ static binary.
 
 The binary has no runtime dependencies. Go is needed only to build it.
 
-## Build
+## Build and install
+
+One script does everything:
 
 ```sh
-./build.sh
+sudo ./install.sh
 ```
 
-Or directly:
+It builds the binary, detects the package manager (apt, dnf, pacman, zypper,
+apk), installs `tor`, `iptables` and `conntrack`, and copies the binary to
+`/usr/local/bin/tor-gateway`. If root's `secure_path` omits `/usr/local/bin`,
+it also creates a `/usr/bin/tor-gateway` symlink so `sudo tor-gateway`
+resolves.
+
+Build only, no root, no package changes:
+
+```sh
+./install.sh --build-only
+```
+
+Or call the compiler directly:
 
 ```sh
 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o tor-gateway ./cmd/tor-gateway
 ```
 
 Result: single statically linked executable, about 2 MB.
-
-Install:
-
-```sh
-sudo ./install.sh
-```
-
-`install.sh` detects the package manager (apt, dnf, pacman, zypper, apk),
-installs `tor`, `iptables` and `conntrack`, builds the binary if missing,
-and copies it to `/usr/local/bin/tor-gateway`. If root's `secure_path`
-omits `/usr/local/bin`, it also creates a `/usr/bin/tor-gateway` symlink so
-`sudo tor-gateway` resolves.
 
 ## Usage
 
@@ -135,6 +137,5 @@ internal/gateway/run.go        up/down commands
 internal/gateway/tor.go        torrc generation, process start, bootstrap wait
 internal/gateway/firewall.go   iptables rules, conntrack flush
 internal/gateway/state.go      paths, locking, tor user detection, status
-build.sh                       static build helper
-install.sh                     dependency install + binary install
+install.sh                     build + dependency install + binary install
 ```
