@@ -34,7 +34,9 @@ sudo ./install.sh
 
 `install.sh` detects the package manager (apt, dnf, pacman, zypper, apk),
 installs `tor`, `iptables` and `conntrack`, builds the binary if missing,
-and copies it to `/usr/local/bin/tor-gateway`.
+and copies it to `/usr/local/bin/tor-gateway`. If root's `secure_path`
+omits `/usr/local/bin`, it also creates a `/usr/bin/tor-gateway` symlink so
+`sudo tor-gateway` resolves.
 
 ## Usage
 

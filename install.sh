@@ -82,6 +82,13 @@ command -v tor >/dev/null 2>&1 || die "tor is still missing after install"
 command -v iptables >/dev/null 2>&1 || die "iptables is still missing after install"
 
 install -m 755 "$BIN" "$PREFIX/tor-gateway"
+
+# sudo often uses a restricted secure_path that omits /usr/local/bin.
+# Add a symlink in /usr/bin when that is the case.
+if [[ ":$PATH:" != *":$PREFIX:"* ]]; then
+    ln -sf "$PREFIX/tor-gateway" /usr/bin/tor-gateway
+fi
+
 echo
 echo "installed: $PREFIX/tor-gateway"
 echo "start:     sudo tor-gateway up"
