@@ -21,7 +21,7 @@ The binary has no runtime dependencies. Go is needed only to build it.
 Or directly:
 
 ```sh
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o tor-gateway .
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o tor-gateway ./cmd/tor-gateway
 ```
 
 Result: single statically linked executable, about 2 MB.
@@ -102,10 +102,10 @@ No systemd dependency. The Tor account is auto-detected (`debian-tor`,
 Go builds per target OS; it is not one binary for all systems:
 
 ```sh
-GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -o tor-gateway-linux-amd64 .
-GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -o tor-gateway-linux-arm64 .
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o tor-gateway.exe .
-GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -o tor-gateway-macos .
+GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -o tor-gateway-linux-amd64 ./cmd/tor-gateway
+GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -o tor-gateway-linux-arm64 ./cmd/tor-gateway
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o tor-gateway.exe ./cmd/tor-gateway
+GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -o tor-gateway-macos ./cmd/tor-gateway
 ```
 
 The tool refuses to run outside Linux, because transparent routing needs
@@ -124,10 +124,10 @@ Linux iptables.
 ## Files
 
 ```
-main.go       CLI entry point and argument parsing
-run.go        up/down commands
-tor.go        torrc generation, process start, bootstrap wait
-firewall.go   iptables/nftables rules, conntrack flush
-state.go      paths, locking, tor user detection, status
-build.sh      static build helper
+cmd/tor-gateway/main.go        CLI entry point and argument parsing
+internal/gateway/run.go        up/down commands
+internal/gateway/tor.go        torrc generation, process start, bootstrap wait
+internal/gateway/firewall.go   iptables rules, conntrack flush
+internal/gateway/state.go      paths, locking, tor user detection, status
+build.sh                       static build helper
 ```

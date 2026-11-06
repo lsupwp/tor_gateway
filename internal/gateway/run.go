@@ -1,12 +1,31 @@
-package main
+package gateway
 
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 )
 
-func cmdUp() error {
+func requireLinux() error {
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("this build supports Linux only (running on %s)", runtime.GOOS)
+	}
+	return nil
+}
+
+func requireRoot(command string) error {
+	if err := requireLinux(); err != nil {
+		return err
+	}
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("must run as root: sudo tor-gateway %s", command)
+	}
+	return nil
+}
+
+// Up starts Tor and routes all TCP and DNS traffic through it.
+func Up() error {
 	if err := requireRoot("up"); err != nil {
 		return err
 	}
@@ -19,7 +38,7 @@ func cmdUp() error {
 	}
 	defer lock.Close()
 
-	if isOpen() {
+	if IsOpen() {
 		fmt.Println("Tor routing is already open.")
 		return nil
 	}
@@ -86,7 +105,8 @@ All TCP and DNS traffic now goes through Tor. UDP and ICMP are blocked.
 	return nil
 }
 
-func cmdDown() error {
+// Down stops Tor and removes the routing rules.
+func Down() error {
 	if err := requireRoot("down"); err != nil {
 		return err
 	}

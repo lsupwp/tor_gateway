@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
+
+	"github.com/lsupwp/tor_gateway/internal/gateway"
 )
 
 const (
@@ -20,11 +21,15 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "up":
-		err = cmdUp()
+		err = gateway.Up()
 	case "down":
-		err = cmdDown()
+		err = gateway.Down()
 	case "status":
-		cmdStatus()
+		if gateway.IsOpen() {
+			fmt.Println("OPEN")
+		} else {
+			fmt.Println("CLOSED")
+		}
 	case "version", "--version", "-v":
 		fmt.Printf("%s %s\n", prog, version)
 	case "help", "--help", "-h":
@@ -52,21 +57,4 @@ Usage:
 
 Requires Linux, tor, iptables and root for up/down.
 `, prog, version, prog, prog, prog, prog)
-}
-
-func requireLinux() error {
-	if runtime.GOOS != "linux" {
-		return fmt.Errorf("this build supports Linux only (running on %s)", runtime.GOOS)
-	}
-	return nil
-}
-
-func requireRoot(command string) error {
-	if err := requireLinux(); err != nil {
-		return err
-	}
-	if os.Geteuid() != 0 {
-		return fmt.Errorf("must run as root: sudo %s %s", prog, command)
-	}
-	return nil
 }

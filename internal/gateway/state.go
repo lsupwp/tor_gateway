@@ -1,8 +1,7 @@
-package main
+package gateway
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -78,7 +77,8 @@ func pidAlive(pid int) bool {
 	return syscall.Kill(pid, 0) == nil
 }
 
-func isOpen() bool {
+// IsOpen reports whether routing is active and the Tor process is alive.
+func IsOpen() bool {
 	b, err := os.ReadFile(status)
 	if err != nil || strings.TrimSpace(string(b)) != "OPEN" {
 		return false
@@ -106,12 +106,4 @@ func stopTor() {
 		}
 	}
 	_ = os.Remove(pidFile)
-}
-
-func cmdStatus() {
-	if isOpen() {
-		fmt.Println("OPEN")
-		return
-	}
-	fmt.Println("CLOSED")
 }
