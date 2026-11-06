@@ -29,8 +29,12 @@ Result: single statically linked executable, about 2 MB.
 Install:
 
 ```sh
-sudo install -m 755 tor-gateway /usr/local/bin/tor-gateway
+sudo ./install.sh
 ```
+
+`install.sh` detects the package manager (apt, dnf, pacman, zypper, apk),
+installs `tor`, `iptables` and `conntrack`, builds the binary if missing,
+and copies it to `/usr/local/bin/tor-gateway`.
 
 ## Usage
 
@@ -130,4 +134,5 @@ internal/gateway/tor.go        torrc generation, process start, bootstrap wait
 internal/gateway/firewall.go   iptables rules, conntrack flush
 internal/gateway/state.go      paths, locking, tor user detection, status
 build.sh                       static build helper
+install.sh                     dependency install + binary install
 ```
