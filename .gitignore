@@ -1,5 +1,2 @@
-build/
-*.class
-.idea/
-*.iml
-.vscode/
+/tor-gateway
+/build/

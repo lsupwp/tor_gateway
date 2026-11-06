@@ -1,8 +1,82 @@
 # Tor Gateway
 
-Small Java desktop app with one large circular power button that routes all
-TCP and DNS traffic on the machine through the Tor network. Red = direct
-connection, green = routed through Tor. Click the button to toggle.
+Command-line tool that routes all TCP and DNS traffic on the machine through
+the Tor network, with a built-in kill switch. Written in Go, ships as one
+static binary.
+
+## Requirements
+
+- Linux with `iptables` / `ip6tables` (nft backend is fine)
+- Tor (`tor` package)
+- Root for `up` and `down`
+
+The binary has no runtime dependencies. Go is needed only to build it.
+
+## Build
+
+```sh
+./build.sh
+```
+
+Or directly:
+
+```sh
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o tor-gateway .
+```
+
+Result: single statically linked executable, about 2 MB.
+
+Install:
+
+```sh
+sudo install -m 755 tor-gateway /usr/local/bin/tor-gateway
+```
+
+## Usage
+
+```sh
+sudo tor-gateway up       # start Tor and route all TCP/DNS traffic
+sudo tor-gateway down     # stop Tor and restore normal networking
+tor-gateway status        # print OPEN or CLOSED (no root needed)
+tor-gateway version
+```
+
+Example:
+
+```sh
+$ sudo tor-gateway up
+tor user: debian-tor (uid 117)
+validating config...
+starting tor...
+waiting for tor to bootstrap (up to 90s)...
+tor bootstrapped
+applying firewall rules...
+Tor routing is OPEN
+  SOCKS  127.0.0.1:9060
+  Trans  127.0.0.1:9140
+  DNS    127.0.0.1:5453
+```
+
+## What it does
+
+1. Writes a dedicated `torrc` under `/run/tor-gateway` with:
+   - `SocksPort 127.0.0.1:9060` with `IsolateSOCKSAuth IsolateDestAddr
+     IsolateDestPort`
+   - `TransPort 127.0.0.1:9140` with `IsolateDestAddr IsolateDestPort`
+   - `DNSPort 127.0.0.1:5453`
+   - `HTTPTunnelPort 0`, `ClientOnly 1`
+   - `SafeSocks 1`, `TestSocks 1`
+   - `DisableAllSwap 1`
+2. Starts `tor` and waits for `Bootstrapped 100%`.
+3. Adds iptables chains:
+   - `TOR_GATEWAY_NAT` redirects all locally generated TCP to 9140 and
+     UDP port 53 to 5453, except traffic owned by the Tor user.
+   - `TOR_GATEWAY_OUT` accepts Tor's own traffic and loopback, then rejects
+     everything else. This is the kill switch.
+4. Blocks all IPv6 output.
+5. Flushes conntrack so pre-existing flows cannot bypass the redirect.
+
+`down` removes the chains, stops Tor, and restores normal networking.
 
 ## Supported distributions
 
@@ -14,78 +88,46 @@ x86_64), kernel 7.1.5+kali-amd64, Tor 0.4.9.14.
 | Kali Rolling | Tested | Reference platform |
 | Debian 12/13 | Expected to work | Same packages and `debian-tor` user |
 | Ubuntu 22.04+ / Mint / Parrot | Expected to work | Same as Debian |
-| Arch / Manjaro | Expected to work | `pacman -S tor iptables polkit` |
-| Fedora 39+ | Expected to work | `dnf install tor iptables-nft polkit` |
-| openSUSE Tumbleweed | Untested | Needs `iptables` and a polkit agent |
-| Alpine | Untested | No systemd needed, but install `polkit` and an agent |
+| Arch / Manjaro | Expected to work | `pacman -S tor iptables` |
+| Fedora 39+ | Expected to work | `dnf install tor iptables-nft` |
+| openSUSE Tumbleweed | Untested | Needs `iptables` |
+| Alpine | Untested | Install `iptables` and `tor` |
 | Windows / macOS | Not supported | Linux iptables required |
 
-Portable across these because the app uses only Tor, iptables and pkexec.
-No systemd dependency. The script auto-detects the Tor account
-(`debian-tor`, `tor`, or root), so distro naming differences are handled.
+No systemd dependency. The Tor account is auto-detected (`debian-tor`,
+`tor`, or root).
 
-## Requirements
+## Cross-compiling
 
-- Linux with iptables/ip6tables (nft backend is fine)
-- Java 17 or newer (`java`, `javac`)
-- Tor (`sudo apt install tor`, or the distro equivalent)
-- A polkit agent so `pkexec` can ask for your password (normal on desktop
-  environments)
-
-## Build and run
+Go builds per target OS; it is not one binary for all systems:
 
 ```sh
-./build.sh
-./run.sh
+GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -o tor-gateway-linux-amd64 .
+GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -o tor-gateway-linux-arm64 .
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o tor-gateway.exe .
+GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -o tor-gateway-macos .
 ```
 
-## What it does
-
-Click the green button to start routing (or the red one to stop it). All
-privileged work happens in the scripts:
-
-**Start**
-
-1. Starts a dedicated `tor` process with its own config under
-   `/run/tor-gateway`.
-   - SOCKS 9060, TransPort 9140, DNSPort 5453
-   - TransPort runs with `IsolateDestAddr IsolateDestPort`, so streams to
-     different destinations (host or port) use separate circuits. Tor then
-     picks a different exit per circuit, so different sites usually show
-     different exit IPs.
-2. Waits until Tor reports `Bootstrapped 100%`.
-3. Installs two iptables chains:
-   - `TOR_GATEWAY_NAT` redirects all locally generated TCP to 9140 and
-     UDP port 53 to 5453, except traffic owned by the Tor user.
-   - `TOR_GATEWAY_OUT` accepts Tor's own traffic and loopback, then rejects
-     everything else. This prevents leaks if a redirect fails.
-4. Blocks all IPv6 output (Tor uses IPv4 here).
-
-**Stop**
-
-1. Removes the firewall chains.
-2. Stops the Tor process.
-3. Restores normal networking.
+The tool refuses to run outside Linux, because transparent routing needs
+Linux iptables.
 
 ## Limitations
 
-- Tor carries TCP only. UDP other than DNS is blocked, and ICMP (ping) is
-  blocked, by design to prevent leaks.
-- Local and link-local traffic is exempted only on loopback; private LAN
-  destinations are routed through Tor.
-- Apps with their own proxy settings may still work, but transparent
-  redirect applies regardless.
-- If the app is killed while routing is open, the rules stay active. Run
-  `./scripts/tor-gateway-down.sh` as root to reset.
-- Routes only the local machine, not other devices on the network.
+- Tor carries TCP only. UDP other than DNS and ICMP are blocked to prevent
+  leaks.
+- Opening routing kills existing connections, because conntrack is flushed.
+- Private LAN destinations are routed through Tor; only loopback is exempt.
+- Routes only the local machine.
+- If the process is killed while open, rules stay active. Run
+  `sudo tor-gateway down` to reset.
 
 ## Files
 
 ```
-build.sh                          compile to build/tor-gateway.jar
-run.sh                            launch the GUI
-src/main/java/torgateway/TorGateway.java
-scripts/common.sh                 shared config and firewall helpers
-scripts/tor-gateway-up.sh         start Tor + apply rules
-scripts/tor-gateway-down.sh       stop Tor + remove rules
+main.go       CLI entry point and argument parsing
+run.go        up/down commands
+tor.go        torrc generation, process start, bootstrap wait
+firewall.go   iptables/nftables rules, conntrack flush
+state.go      paths, locking, tor user detection, status
+build.sh      static build helper
 ```
